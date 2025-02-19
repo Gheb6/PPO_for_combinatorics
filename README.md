@@ -3,7 +3,7 @@
 - [ ]  heatmap: n*n matrix containing the average of each bit
 - [ ] plots with matplotlib
 - [ ] dictionary → counts different graphs and their frequencies
-- [ ] proceed for 1000 steps after a counterexample is found
+- [X] proceed for 1000 steps after a counterexample is found
 - [ ] single, transposed CSV
 - [ ] terminate in case of prolonged stalling
 
