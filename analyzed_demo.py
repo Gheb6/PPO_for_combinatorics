@@ -82,6 +82,11 @@ number_of_super_graphs = 0
 number_of_elite_actions = 0
 
 
+found_counterexample = False
+iterations_after_counterexample = 0
+MAX_ITERATIONS_AFTER_COUNTEREXAMPLE = 1000
+
+
 def calcScore(state):
         """
         Calculates the reward for a given word.
@@ -98,6 +103,7 @@ def calcScore(state):
         #There is a lot of run-to-run variance.
         #Finds the counterexample some 30% (?) of the time with these parameters, but you can run several instances in parallel.
 
+        global found_counterexample, iterations_after_counterexample
         #Construct the graph
         G= nx.Graph()
         G.add_nodes_from(list(range(N)))
@@ -127,22 +133,22 @@ def calcScore(state):
         #We add to this the conjectured best value. This way if the reward is positive we know we have a counterexample.
         myScore = math.sqrt(N-1) + 1 - lambda1 - mu
         if myScore > 0:
-                #You have found a counterexample. Do something with it.
-                print(state)
-                nx.draw_kamada_kawai(G)
-                plt.savefig('output.png')
-                #Save the graph
-                with open('positive score graph.txt', 'w') as f:
-                        f.write("Graph state: \n")
-                        f.write(str(state) + "\n")
-                        f.write("Score: " + str(myScore) + "\n")
-                        end_time = time.time()
-                        execution_time = end_time - start_time
-                with open('Total_execution_time.txt', 'w') as f:
-                        print("Total execution time: " + str(execution_time))
-                        f.write("Total execution time: " + str(execution_time))
-                exit()
-
+                if not found_counterexample:
+                        found_counterexample = True
+                        print(state)
+                        nx.draw_kamada_kawai(G)
+                        #Save the graph
+                        plt.savefig('output.png')
+                
+                        with open('positive score graph.txt', 'w') as f:
+                                f.write("Graph state: \n")
+                                f.write(str(state) + "\n")
+                                f.write("Score: " + str(myScore) + "\n")
+                                end_time = time.time()
+                                execution_time = end_time - start_time
+                        with open('Total_execution_time.txt', 'w') as f:
+                                print("Total execution time: " + str(execution_time))
+                                f.write("Total execution time: " + str(execution_time))
         return myScore
 
 
@@ -329,13 +335,19 @@ for i in range(1000000): #1000000 generations should be plenty
         sessgen_time = time.time()-tic
         tic = time.time()
 
+        if found_counterexample:
+                iterations_after_counterexample += 1
+                if iterations_after_counterexample >= MAX_ITERATIONS_AFTER_COUNTEREXAMPLE:
+                        print("Termination after 1000 additional iterations")
+                        break
+        
         states_batch = np.array(sessions[0], dtype = int)
         actions_batch = np.array(sessions[1], dtype = int)
         rewards_batch = np.array(sessions[2])
         states_batch = np.transpose(states_batch,axes=[0,2,1])
 
         states_batch = np.append(states_batch,super_states,axis=0)
-
+        
         if i>0:
                 actions_batch = np.append(actions_batch,np.array(super_actions),axis=0)
         rewards_batch = np.append(rewards_batch,super_rewards)
@@ -388,9 +400,10 @@ for i in range(1000000): #1000000 generations should be plenty
                 model.summary(print_fn=lambda x: buf.write(x + "\n"))
                 summary_str = buf.getvalue()
 
-# Write the summary
+        # Write the summary
         with open('/media/asuna/gabriele/data_analysis/test6/neural_net/summary' + str(i) + '.txt', 'w') as f:
                 f.write(summary_str)
+          
         #uncomment below line to print out how much time each step in this loop takes.
 
         with open('/media/asuna/gabriele/data_analysis/test6/times/time' + str(i) + '.txt', 'a') as f:
