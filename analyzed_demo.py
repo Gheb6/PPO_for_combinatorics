@@ -32,6 +32,7 @@ matplotlib.use('Agg')  # Set Agg as backend
 import matplotlib.pyplot as plt
 import io
 import os
+import json
 
 
 N = 19   #number of vertices in the graph. Only used in the reward function, not directly relevant to the algorithm
@@ -211,8 +212,8 @@ def generate_session(agent, n_sessions, verbose = 1):
                 if terminal:
                         break
         #If you want, print out how much time each step has taken. This is useful to find the bottleneck in the program.
-        with open('/media/asuna/gabriele/data_analysis/test6/times/time' + str(verbose)  + '.txt', 'w') as f:
-                f.write("Predict: "+str(pred_time)+", play: " + str(play_time) +", scorecalc: " + str(scorecalc_time) +", recordsess: " + str(recordsess_time))
+        #with open('/media/asuna/gabriele/data_analysis/test6/times/time' + str(verbose)  + '.txt', 'w') as f:
+        #        f.write("Predict: "+str(pred_time)+", play: " + str(play_time) +", scorecalc: " + str(scorecalc_time) +", recordsess: " + str(recordsess_time))
         return states, actions, total_score
 
 
@@ -381,6 +382,30 @@ for i in range(1000000): #1000000 generations should be plenty
         mean_all_reward = np.mean(rewards_batch[-100:])
         mean_best_reward = np.mean(super_rewards)
 
+
+        base_path = "/media/asuna/gabriele/new_analysis/test1/dictionaries"
+        # Create the directory if it does not exist
+        os.makedirs(base_path, exist_ok=True)
+
+        # Iterate over a process example (simulation of iterations)
+
+        occurrences = {}
+
+        for action in super_actions:
+                # Ensure that action is a full row of the array and convert it to a string
+                key = " ".join(map(str, action))  # Convert each bit to a string and separate them with spaces
+                if key in occurrences:
+                        occurrences[key] += 1
+                else:
+                        occurrences[key] = 1
+
+        # Generate a unique filename for each iteration
+        file_name = f"dictionary_{i + 1}.json"
+        file_path = os.path.join(base_path, file_name)
+
+        # Write the dictionary in JSON format
+        with open(file_path, "w") as file:
+                json.dump(occurrences, file, indent=4)
         score_time = time.time()-tic
         print_elite_graph(i, elite_actions)
         with open('Number_of_super_states.csv', 'a') as f:
