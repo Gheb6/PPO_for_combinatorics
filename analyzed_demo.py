@@ -83,6 +83,10 @@ number_of_super_graphs = 0
 number_of_elite_actions = 0
 
 
+# Variable to accumulate actions for each block
+actions_block = []
+iteration_block = 500  # Number of iterations to calculate the heatmap
+
 found_counterexample = False
 iterations_after_counterexample = 0
 MAX_ITERATIONS_AFTER_COUNTEREXAMPLE = 1000
@@ -381,6 +385,7 @@ for i in range(1000000): #1000000 generations should be plenty
         rewards_batch.sort()
         mean_all_reward = np.mean(rewards_batch[-100:])
         mean_best_reward = np.mean(super_rewards)
+        score_time = time.time()-tic
 
 
         base_path = "/media/asuna/gabriele/new_analysis/test1/dictionaries"
@@ -406,8 +411,45 @@ for i in range(1000000): #1000000 generations should be plenty
         # Write the dictionary in JSON format
         with open(file_path, "w") as file:
                 json.dump(occurrences, file, indent=4)
-        score_time = time.time()-tic
-        print_elite_graph(i, elite_actions)
+
+        # Add the actions of the current block
+        actions_block.extend(super_actions)
+
+        # Compute and save the heatmap every 500 iterations
+        if (i + 1) % iteration_block == 0:
+        # Convert actions to a NumPy array
+            actions_array = np.array(actions_block)
+
+            # Compute the mean of each bit (axis 0)
+            bit_means = actions_array.mean(axis=0)
+            bit_means_file_path = f"/media/asuna/gabriele/new_analysis/test1/heatmap/bit_means_{i + 1}.json"
+            with open(bit_means_file_path, "w") as f:
+                json.dump(bit_means.tolist(), f, indent=4)  # Convert the NumPy array to a list to save it as JSON
+
+            # Generate and save the heatmap
+            plt.figure(figsize=(10, 2))
+            plt.imshow(
+                [bit_means], aspect="auto", cmap="viridis", interpolation="nearest"
+            )
+            plt.colorbar(label="Average Value")
+            plt.title(f"Bit Mean Heatmap - Iterations {i + 1 - iteration_block + 1} to {i + 1}")
+            plt.xlabel("Bit Index")
+            plt.yticks([])  # Remove the Y-axis since there is only one row
+
+            # Save path
+            heatmap_path = f"/media/asuna/gabriele/new_analysis/test1/heatmap/heatmap_{i + 1}.pdf"
+            plt.savefig(heatmap_path)
+            plt.close()
+
+            print(f"Heatmap saved: {heatmap_path}")
+
+            # Reset the data for the next block
+            actions_block = []
+
+
+        
+        
+        #print_elite_graph(i, elite_actions)
         with open('Number_of_super_states.csv', 'a') as f:
                 f.write(str(number_of_super_graphs).replace('.', ','))
                 f.write(",")
@@ -426,12 +468,12 @@ for i in range(1000000): #1000000 generations should be plenty
                 summary_str = buf.getvalue()
 
         # Write the summary
-        with open('/media/asuna/gabriele/data_analysis/test6/neural_net/summary' + str(i) + '.txt', 'w') as f:
+        with open('/media/asuna/gabriele/new_analysis/test1/neural_net/summary' + str(i) + '.txt', 'w') as f:
                 f.write(summary_str)
           
         #uncomment below line to print out how much time each step in this loop takes.
 
-        with open('/media/asuna/gabriele/data_analysis/test6/times/time' + str(i) + '.txt', 'a') as f:
+        with open('/media/asuna/gabriele/new_analysis/test1/times/time' + str(i) + '.txt', 'a') as f:
                 f.write("Mean reward: " + str(mean_all_reward) + "\nSessgen: " + str(sessgen_time) + ", other: " + str(randomcomp_time) + ", select1: " + str(select1_time) + ", select2: " + str(select2_time) + ", select3: " + str(select3_time) +  ", fit: " + str(fit_time) + ", score: " + str(score_time) + '\n' + '\n')
 
         with open('Mean_best_reward.csv','a') as f:
