@@ -87,6 +87,11 @@ number_of_elite_actions = 0
 actions_block = []
 iteration_block = 500  # Number of iterations to calculate the heatmap
 
+##NumPy array that tracks statistics
+statistics = np.empty((0, 12), dtype=float)
+new_tuple = ()
+
+# Global variables to terminate the program 1000 iterations after the counterexample
 found_counterexample = False
 iterations_after_counterexample = 0
 MAX_ITERATIONS_AFTER_COUNTEREXAMPLE = 1000
@@ -170,6 +175,7 @@ def generate_session(agent, n_sessions, verbose = 1):
 
         Code inspired by https://github.com/yandexdataschool/Practical_RL/blob/master/week01_intro/deep_crossentropy_method.ipynb
         """
+        global new_tuple
         states =  np.zeros([n_sessions, observation_space, len_game], dtype=int)
         actions = np.zeros([n_sessions, len_game], dtype = int)
         state_next = np.zeros([n_sessions,observation_space], dtype = int)
@@ -215,6 +221,7 @@ def generate_session(agent, n_sessions, verbose = 1):
 
                 if terminal:
                         break
+        #new_tuple = new_tuple + (pred_time, play_time, scorecalc_time, recordsess_time,)
         #If you want, print out how much time each step has taken. This is useful to find the bottleneck in the program.
         #with open('/media/asuna/gabriele/data_analysis/test6/times/time' + str(verbose)  + '.txt', 'w') as f:
         #        f.write("Predict: "+str(pred_time)+", play: " + str(play_time) +", scorecalc: " + str(scorecalc_time) +", recordsess: " + str(recordsess_time))
@@ -446,39 +453,49 @@ for i in range(1000000): #1000000 generations should be plenty
             # Reset the data for the next block
             actions_block = []
 
+        #with open('Number_of_super_states.csv', 'a') as f:
+        #        f.write(str(number_of_super_graphs).replace('.', ','))
+        #        f.write(",")
 
-        
-        
-        #print_elite_graph(i, elite_actions)
-        with open('Number_of_super_states.csv', 'a') as f:
-                f.write(str(number_of_super_graphs).replace('.', ','))
-                f.write(",")
+        #with open('Number_of_elite_states.csv','a') as f:
+        #        f.write(str(number_of_elite_graphs).replace('.', ','))
+        #        f.write(",")
 
-        with open('Number_of_elite_states.csv','a') as f:
-                f.write(str(number_of_elite_graphs).replace('.', ','))
-                f.write(",")
-
-        with open('number_of_elite_actions.csv','a') as f:
-                f.write(str(number_of_elite_actions).replace('.', ','))
-                f.write(',')
+        #with open('number_of_elite_actions.csv','a') as f:
+        #       f.write(str(number_of_elite_actions).replace('.', ','))
+        #       f.write(',')
 
     # Capture the output of model.summary()
-        with io.StringIO() as buf:
-                model.summary(print_fn=lambda x: buf.write(x + "\n"))
-                summary_str = buf.getvalue()
+        #with io.StringIO() as buf:
+        #        model.summary(print_fn=lambda x: buf.write(x + "\n"))
+        #        summary_str = buf.getvalue()
 
         # Write the summary
-        with open('/media/asuna/gabriele/new_analysis/test1/neural_net/summary' + str(i) + '.txt', 'w') as f:
-                f.write(summary_str)
+        #with open('/media/asuna/gabriele/new_analysis/test1/neural_net/summary' + str(i) + '.txt', 'w') as f:
+        #        f.write(summary_str)
           
         #uncomment below line to print out how much time each step in this loop takes.
 
-        with open('/media/asuna/gabriele/new_analysis/test1/times/time' + str(i) + '.txt', 'a') as f:
-                f.write("Mean reward: " + str(mean_all_reward) + "\nSessgen: " + str(sessgen_time) + ", other: " + str(randomcomp_time) + ", select1: " + str(select1_time) + ", select2: " + str(select2_time) + ", select3: " + str(select3_time) +  ", fit: " + str(fit_time) + ", score: " + str(score_time) + '\n' + '\n')
+        #with open('/media/asuna/gabriele/new_analysis/test1/times/time' + str(i) + '.txt', 'a') as f:
+        #        f.write("Mean reward: " + str(mean_all_reward) + "\nSessgen: " + str(sessgen_time) + ", other: " + str(randomcomp_time) + ", select1: " + str(select1_time) + ", select2: " + str(select2_time) + ", select3: " + str(select3_time) +  ", fit: " + str(fit_time) + ", score: " + str(score_time) + '\n' + '\n')
 
-        with open('Mean_best_reward.csv','a') as f:
-                f.write(str(mean_best_reward).replace('.', ','))
-                f.write(";")
+        #with open('Mean_best_reward.csv','a') as f:
+        #        f.write(str(mean_best_reward).replace('.', ','))
+        #        f.write(";")
+
+        # Change this to print every elite graph:
+        if(False):
+                print_elite_graph(i, elite_actions)
+
+        new_tuple = new_tuple + (sessgen_time, randomcomp_time, select1_time, select2_time, select3_time, fit_time, score_time,)
+        number_of_parameters = model.count_params()
+        new_tuple = new_tuple + (mean_best_reward, number_of_elite_graphs, number_of_elite_actions, number_of_super_graphs, number_of_parameters,)
+        statistics = np.append(statistics, [new_tuple], axis=0)
+        header = "sessgen_time, randomcomp_time, select1_time, select2_time, select3_time, fit_time, score_time, mean_best_reward, number_of_elite_graphs, number_of_elite_actions, number_of_super_graphs, parameters,"
+        np.savetxt('output.csv', statistics, delimiter=',', fmt='%.2f', header=header, comments='')
+        new_tuple = ()
+
+        print("CSV file successfully written!")
 
 
 
