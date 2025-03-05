@@ -33,6 +33,7 @@ import matplotlib.pyplot as plt
 import io
 import os
 import json
+import sys
 
 
 N = 19   #number of vertices in the graph. Only used in the reward function, not directly relevant to the algorithm
@@ -419,6 +420,12 @@ for i in range(1000000): #1000000 generations should be plenty
         with open(file_path, "w") as file:
                 json.dump(occurrences, file, indent=4)
 
+        #TERMINATION CONDITION
+        # Check if the dictionary has only one key 
+        if len(occurrences) == 1:
+                print("The dictionary has a single key. Program terminated.")
+                sys.exit()
+
         # Add the actions of the current block
         actions_block.extend(super_actions)
 
@@ -453,36 +460,6 @@ for i in range(1000000): #1000000 generations should be plenty
             # Reset the data for the next block
             actions_block = []
 
-        #with open('Number_of_super_states.csv', 'a') as f:
-        #        f.write(str(number_of_super_graphs).replace('.', ','))
-        #        f.write(",")
-
-        #with open('Number_of_elite_states.csv','a') as f:
-        #        f.write(str(number_of_elite_graphs).replace('.', ','))
-        #        f.write(",")
-
-        #with open('number_of_elite_actions.csv','a') as f:
-        #       f.write(str(number_of_elite_actions).replace('.', ','))
-        #       f.write(',')
-
-    # Capture the output of model.summary()
-        #with io.StringIO() as buf:
-        #        model.summary(print_fn=lambda x: buf.write(x + "\n"))
-        #        summary_str = buf.getvalue()
-
-        # Write the summary
-        #with open('/media/asuna/gabriele/new_analysis/test1/neural_net/summary' + str(i) + '.txt', 'w') as f:
-        #        f.write(summary_str)
-          
-        #uncomment below line to print out how much time each step in this loop takes.
-
-        #with open('/media/asuna/gabriele/new_analysis/test1/times/time' + str(i) + '.txt', 'a') as f:
-        #        f.write("Mean reward: " + str(mean_all_reward) + "\nSessgen: " + str(sessgen_time) + ", other: " + str(randomcomp_time) + ", select1: " + str(select1_time) + ", select2: " + str(select2_time) + ", select3: " + str(select3_time) +  ", fit: " + str(fit_time) + ", score: " + str(score_time) + '\n' + '\n')
-
-        #with open('Mean_best_reward.csv','a') as f:
-        #        f.write(str(mean_best_reward).replace('.', ','))
-        #        f.write(";")
-
         # Change this to print every elite graph:
         if(False):
                 print_elite_graph(i, elite_actions)
@@ -504,26 +481,6 @@ for i in range(1000000): #1000000 generations should be plenty
         # #uncomment below line to print out how much time each step in this loop takes.
         # print(        "Mean reward: " + str(mean_all_reward) + "\nSessgen: " + str(sessgen_time) + ", other: " + str(randomcomp_time) + ", select1: " + str(select1_time) + ", select2: " + str(select2_time) + ", select3: " + str(select3_time) +  ", fit: " + str(fit_time) + ", score: " + str(score_time))
 
-
-        # if (i%20 == 1): #Write all important info to files every 20 iterations
-        #       with open('best_species_pickle_'+str(myRand)+'.txt', 'wb') as fp:
-        #               pickle.dump(super_actions, fp)
-        #       with open('best_species_txt_'+str(myRand)+'.txt', 'w') as f:
-        #               for item in super_actions:
-        #                       f.write(str(item))
-        #                       f.write("\n")
-        #       with open('best_species_rewards_'+str(myRand)+'.txt', 'w') as f:
-        #               for item in super_rewards:
-        #                       f.write(str(item))
-        #                       f.write("\n")
-        #       with open('best_100_rewards_'+str(myRand)+'.txt', 'a') as f:
-        #               f.write(str(mean_all_reward)+"\n")
-        #       with open('best_elite_rewards_'+str(myRand)+'.txt', 'a') as f:
-        #               f.write(str(mean_best_reward)+"\n")
-        # if (i%200==2): # To create a timeline, like in Figure 3
-        #       with open('best_species_timeline_txt_'+str(myRand)+'.txt', 'a') as f:
-        #               f.write(str(super_actions[0]))
-        #               f.write("\n")
 
 print('maximum iterations exceeded\n')
 end_time = time.time()
