@@ -34,6 +34,7 @@ import io
 import os
 import json
 import sys
+import csv
 
 
 N = 19   #number of vertices in the graph. Only used in the reward function, not directly relevant to the algorithm
@@ -63,6 +64,27 @@ state_dim = (observation_space,)
 
 INF = 1000000
 
+# Global counters
+number_of_elite_graphs = 0
+number_of_super_graphs = 0
+number_of_elite_actions = 0
+
+
+# Global variables to terminate the program 1000 iterations after the counterexample
+found_counterexample = False
+iterations_after_counterexample = 0
+MAX_ITERATIONS_AFTER_COUNTEREXAMPLE = 1000
+max_score = -INF
+
+##NumPy array that tracks statistics
+statistics = np.empty((0, 15), dtype=float)
+new_tuple = ()
+
+# Variable to accumulate actions for each block
+actions_block = []
+iteration_block = 500  # Number of iterations to calculate the heatmap
+
+CHANGE_ORDER = False
 
 #Model structure: a sequential network with three hidden layers, sigmoid activation in the output.
 #I usually used relu activation in the hidden layers but play around to see what activation function and what optimizer works best.
@@ -77,25 +99,6 @@ model.build((None, observation_space))
 model.compile(loss="binary_crossentropy", optimizer=SGD(learning_rate = LEARNING_RATE)) #Adam optimizer also works well, with lower learning rate
 
 print(model.summary())
-
-# Global counters
-number_of_elite_graphs = 0
-number_of_super_graphs = 0
-number_of_elite_actions = 0
-
-
-# Variable to accumulate actions for each block
-actions_block = []
-iteration_block = 500  # Number of iterations to calculate the heatmap
-
-##NumPy array that tracks statistics
-statistics = np.empty((0, 12), dtype=float)
-new_tuple = ()
-
-# Global variables to terminate the program 1000 iterations after the counterexample
-found_counterexample = False
-iterations_after_counterexample = 0
-MAX_ITERATIONS_AFTER_COUNTEREXAMPLE = 1000
 
 
 def calcScore(state):
@@ -113,17 +116,26 @@ def calcScore(state):
         #Takes a few hours  (between 300 and 10000 iterations) to converge (loss < 0.01) on my computer with these parameters if not using parallelization.
         #There is a lot of run-to-run variance.
         #Finds the counterexample some 30% (?) of the time with these parameters, but you can run several instances in parallel.
-
-        global found_counterexample, iterations_after_counterexample
+        
+        global found_counterexample, iterations_after_counterexample, max_score, CHANGE_ORDER
+        
         #Construct the graph
         G= nx.Graph()
         G.add_nodes_from(list(range(N)))
         count = 0
-        for i in range(N):
-                for j in range(i+1,N):
-                        if state[count] == 1:
-                                G.add_edge(i,j)
-                        count += 1
+        
+        if CHANGE_ORDER:
+                for k in range(1, N):
+                        for j in range(0, k):
+                                if state[count] == 1:
+                                        G.add_edge(j, k)
+                                count += 1
+        else:
+                for k in range(N):
+                        for j in range(k+1,N):
+                                if state[count] == 1:
+                                        G.add_edge(k,j)
+                                count += 1
 
         #G is assumed to be connected in the conjecture. If it isn't, return a very negative reward.
         if not (nx.is_connected(G)):
@@ -143,6 +155,8 @@ def calcScore(state):
         #Calculate the reward. Since we want to minimize lambda_1 + mu, we return the negative of this.
         #We add to this the conjectured best value. This way if the reward is positive we know we have a counterexample.
         myScore = math.sqrt(N-1) + 1 - lambda1 - mu
+        if myScore > max_score:
+                max_score = myScore
         if myScore > 0:
                 if not found_counterexample:
                         found_counterexample = True
@@ -160,6 +174,8 @@ def calcScore(state):
                         with open('Total_execution_time.txt', 'w') as f:
                                 print("Total execution time: " + str(execution_time))
                                 f.write("Total execution time: " + str(execution_time))
+                return myScore
+
         return myScore
 
 
@@ -223,14 +239,11 @@ def generate_session(agent, n_sessions, verbose = 1):
                 if terminal:
                         break
         #new_tuple = new_tuple + (pred_time, play_time, scorecalc_time, recordsess_time,)
-        #If you want, print out how much time each step has taken. This is useful to find the bottleneck in the program.
-        #with open('/media/asuna/gabriele/data_analysis/test6/times/time' + str(verbose)  + '.txt', 'w') as f:
-        #        f.write("Predict: "+str(pred_time)+", play: " + str(play_time) +", scorecalc: " + str(scorecalc_time) +", recordsess: " + str(recordsess_time))
         return states, actions, total_score
 
 
 
-def select_elites(states_batch, actions_batch, rewards_batch, percentile=50):
+def     select_elites(states_batch, actions_batch, rewards_batch, percentile=50):
         """
         Select states and actions from games that have rewards >= percentile
         :param states_batch: list of lists of states, states_batch[session_i][t]
@@ -296,10 +309,14 @@ def select_super_sessions(states_batch, actions_batch, rewards_batch, percentile
         return super_states, super_actions, super_rewards
 
 
-def print_elite_graph(iteration, elite_action, base_path="/media/asuna/gabriele/data_analysis/test6/elite_actions"):
+def print_elite_graph(iteration, elite_action, base_path):
+    
+    elite_graph_dir = os.path.join(base_path, "elite_graph")
+    os.makedirs(elite_graph_dir, exist_ok=True)
+    
     # Change folder every iteration (modifiable based on desired logic)
     folder_number = iteration // 1
-    directory = os.path.join(base_path, f"iteration_{folder_number}")
+    directory = os.path.join(elite_graph_dir, f"Elite_graphs_{folder_number}")
 
     # Create the directory if it does not exist
     os.makedirs(directory, exist_ok=True)
@@ -327,7 +344,6 @@ def print_elite_graph(iteration, elite_action, base_path="/media/asuna/gabriele/
         with open(file_path, "w") as f:
             f.write(buffer.strip())
 
-
 super_states =  np.empty((0,len_game,observation_space), dtype = int)
 super_actions = np.array([], dtype = int)
 super_rewards = np.array([])
@@ -338,6 +354,11 @@ score_time = 0
 
 
 myRand = random.randint(0,1000) #used in the filename
+
+
+# Create output directory for results
+output_dir = "results"
+os.makedirs(output_dir, exist_ok=True)
 
 for i in range(1000000): #1000000 generations should be plenty
         #generate new sessions
@@ -352,15 +373,15 @@ for i in range(1000000): #1000000 generations should be plenty
                 iterations_after_counterexample += 1
                 if iterations_after_counterexample >= MAX_ITERATIONS_AFTER_COUNTEREXAMPLE:
                         print("Termination after 1000 additional iterations")
-                        break
-        
+                        sys.exit()
+
         states_batch = np.array(sessions[0], dtype = int)
         actions_batch = np.array(sessions[1], dtype = int)
         rewards_batch = np.array(sessions[2])
         states_batch = np.transpose(states_batch,axes=[0,2,1])
 
         states_batch = np.append(states_batch,super_states,axis=0)
-        
+
         if i>0:
                 actions_batch = np.append(actions_batch,np.array(super_actions),axis=0)
         rewards_batch = np.append(rewards_batch,super_rewards)
@@ -393,14 +414,12 @@ for i in range(1000000): #1000000 generations should be plenty
         rewards_batch.sort()
         mean_all_reward = np.mean(rewards_batch[-100:])
         mean_best_reward = np.mean(super_rewards)
+
         score_time = time.time()-tic
-
-
-        base_path = "/media/asuna/gabriele/new_analysis/test1/dictionaries"
-        # Create the directory if it does not exist
+  
+        # Directory path to save the files - modify as needed for your system
+        base_path = os.path.join(output_dir, "dictionaries")
         os.makedirs(base_path, exist_ok=True)
-
-        # Iterate over a process example (simulation of iterations)
 
         occurrences = {}
 
@@ -411,6 +430,7 @@ for i in range(1000000): #1000000 generations should be plenty
                         occurrences[key] += 1
                 else:
                         occurrences[key] = 1
+        
 
         # Generate a unique filename for each iteration
         file_name = f"dictionary_{i + 1}.json"
@@ -422,65 +442,82 @@ for i in range(1000000): #1000000 generations should be plenty
 
         #TERMINATION CONDITION
         # Check if the dictionary has only one key 
-        if len(occurrences) == 1:
+        if len(occurrences) == 1 and not found_counterexample:
                 print("The dictionary has a single key. Program terminated.")
                 sys.exit()
 
+
         # Add the actions of the current block
         actions_block.extend(super_actions)
-
-        # Compute and save the heatmap every 500 iterations
+        # Calculate and save the heatmap every 500 iterations
         if (i + 1) % iteration_block == 0:
-        # Convert actions to a NumPy array
-            actions_array = np.array(actions_block)
+                # Convert the actions into a NumPy array
+                actions_array = np.array(actions_block)
 
-            # Compute the mean of each bit (axis 0)
-            bit_means = actions_array.mean(axis=0)
-            bit_means_file_path = f"/media/asuna/gabriele/new_analysis/test1/heatmap/bit_means_{i + 1}.json"
-            with open(bit_means_file_path, "w") as f:
-                json.dump(bit_means.tolist(), f, indent=4)  # Convert the NumPy array to a list to save it as JSON
+                mean_matrix = np.zeros((N, N))
 
-            # Generate and save the heatmap
-            plt.figure(figsize=(10, 2))
-            plt.imshow(
+                # Calculate the mean of each bit (axis 0)
+                bit_means = actions_array.mean(axis=0)
+                # Populate the matrix symmetrically
+                if CHANGE_ORDER:
+                        for k in range(1, N):
+                                for j in range(0, k):
+                                        mean_value = bit_means[k]
+                                        mean_matrix[j, k] = mean_value
+                                        mean_matrix[j, k] = mean_value
+                                        
+                else:
+                        for k in range(N):
+                                for j in range(k + 1, N):  # Iterate only over the upper half (i < j) to ensure symmetry
+                                        mean_value = bit_means[k]
+                                        mean_matrix[k, j] = mean_value
+                                        mean_matrix[j, k] = mean_value  # The matrix is symmetric, so also set mean_matrix[j, i]
+                
+                # Set the diagonal to 0
+                np.fill_diagonal(mean_matrix, 0)
+                # Create heatmap directory
+                heatmap_dir = os.path.join(output_dir, "heatmap")
+                os.makedirs(heatmap_dir, exist_ok=True)
+                mean_matrix_file_path = os.path.join(heatmap_dir, f"mean_matrix_{i + 1}.csv")
+                with open(mean_matrix_file_path, "w", newline="") as f:
+                        writer = csv.writer(f)
+                        writer.writerow([""] + [f"Node_{j}" for j in range(N)])  # Column header
+                        for k in range(N):
+                                writer.writerow([f"Node_{k}"] + mean_matrix[k].tolist())  # Row with label and values
+
+
+                # Generate and save the heatmap
+                plt.figure(figsize=(10, 2))
+                plt.imshow(
                 [bit_means], aspect="auto", cmap="viridis", interpolation="nearest"
-            )
-            plt.colorbar(label="Average Value")
-            plt.title(f"Bit Mean Heatmap - Iterations {i + 1 - iteration_block + 1} to {i + 1}")
-            plt.xlabel("Bit Index")
-            plt.yticks([])  # Remove the Y-axis since there is only one row
+                )
+                plt.colorbar(label="Average Value")
+                plt.title(f"Heatmap of Average Bits - Iterations {i + 1 - iteration_block + 1} a {i + 1}")
+                plt.xlabel("Bit Index")
+                plt.yticks([])  # Remove the Y-axis since it's a single row
 
-            # Save path
-            heatmap_path = f"/media/asuna/gabriele/new_analysis/test1/heatmap/heatmap_{i + 1}.pdf"
-            plt.savefig(heatmap_path)
-            plt.close()
+                heatmap_path = os.path.join(heatmap_dir, f"heatmap_{i + 1}.png")
+                plt.savefig(heatmap_path)
+                plt.close()
 
-            print(f"Heatmap saved: {heatmap_path}")
+                print(f"Heatmap saved: {heatmap_path}")
 
-            # Reset the data for the next block
-            actions_block = []
+                #Reset the data for the next block
+                actions_block = []
 
         # Change this to print every elite graph:
-        if(False):
-                print_elite_graph(i, elite_actions)
+        if(True):
+                print_elite_graph(i, elite_actions, output_dir)
 
         new_tuple = new_tuple + (sessgen_time, randomcomp_time, select1_time, select2_time, select3_time, fit_time, score_time,)
         number_of_parameters = model.count_params()
-        new_tuple = new_tuple + (mean_best_reward, number_of_elite_graphs, number_of_elite_actions, number_of_super_graphs, number_of_parameters,)
+        new_tuple = new_tuple + (mean_best_reward, number_of_elite_graphs, number_of_elite_actions, number_of_super_graphs, number_of_parameters, max_score, max(occurrences.values()), len(occurrences))
         statistics = np.append(statistics, [new_tuple], axis=0)
-        header = "sessgen_time, randomcomp_time, select1_time, select2_time, select3_time, fit_time, score_time, mean_best_reward, number_of_elite_graphs, number_of_elite_actions, number_of_super_graphs, parameters,"
-        np.savetxt('output.csv', statistics, delimiter=',', fmt='%.2f', header=header, comments='')
+        header = "sessgen_time, randomcomp_time, select1_time, select2_time, select3_time, fit_time, score_time, mean_best_reward, number_of_elite_graphs, number_of_elite_actions, number_of_super_graphs, parameters, max_score, maximum frequency, number of different graphs"
+        np.savetxt(os.path.join(output_dir, 'output.csv'), statistics, delimiter=',', fmt='%.2f', header=header, comments='')
         new_tuple = ()
 
         print("CSV file successfully written!")
-
-
-
-        # print("\n" + str(i) +  ". Best individuals: " + str(np.flip(np.sort(super_rewards))))
-
-        # #uncomment below line to print out how much time each step in this loop takes.
-        # print(        "Mean reward: " + str(mean_all_reward) + "\nSessgen: " + str(sessgen_time) + ", other: " + str(randomcomp_time) + ", select1: " + str(select1_time) + ", select2: " + str(select2_time) + ", select3: " + str(select3_time) +  ", fit: " + str(fit_time) + ", score: " + str(score_time))
-
 
 print('maximum iterations exceeded\n')
 end_time = time.time()
