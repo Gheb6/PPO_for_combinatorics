@@ -464,7 +464,7 @@ for i in range(1000000): #1000000 generations should be plenty
                                 for j in range(0, k):
                                         mean_value = bit_means[k]
                                         mean_matrix[j, k] = mean_value
-                                        mean_matrix[j, k] = mean_value
+                                        mean_matrix[k, j] = mean_value
                                         
                 else:
                         for k in range(N):
