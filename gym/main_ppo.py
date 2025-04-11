@@ -13,9 +13,10 @@ import gymnasium as gym
 # Import our custom environment
 from graph_gym_env import GraphGymEnv
 
-# Set random seeds for reproducibility
-np.random.seed(42)
-torch.manual_seed(42)
+# Set random seeds using current time for randomness
+seed = int(time.time())
+np.random.seed(seed)
+torch.manual_seed(seed)
 
 # Define constants
 N_VERTICES = 19
@@ -26,11 +27,11 @@ RESULTS_DIR = "ppo_graph_gym_results"
 class RewardTrackingCallback(BaseCallback):
     """
     Custom callback for tracking rewards during training.
+    Uses _on_rollout_end for evaluation while implementing required _on_step.
     """
-    def __init__(self, eval_env, eval_freq=1000, verbose=1):
+    def __init__(self, eval_env, verbose=1):
         super(RewardTrackingCallback, self).__init__(verbose)
         self.eval_env = eval_env
-        self.eval_freq = eval_freq
         self.best_mean_reward = -np.inf
         self.best_reward = -np.inf
         self.best_model_path = os.path.join(MODELS_DIR, "best_model")
@@ -43,54 +44,69 @@ class RewardTrackingCallback(BaseCallback):
 
         # Create results directory if it doesn't exist
         os.makedirs(RESULTS_DIR, exist_ok=True)
-
+    
     def _on_step(self):
-        if self.n_calls % self.eval_freq == 0:
-            # Run multiple evaluation episodes
-            n_eval_episodes = 5
-            episode_rewards = []
+        """
+        This method is required by BaseCallback, but since we're using _on_rollout_end,
+        we just return True here to satisfy the abstract method requirement.
+        """
+        return True
 
-            for _ in range(n_eval_episodes):
-                obs, _ = self.eval_env.reset()
-                done = False
-                episode_reward = 0
+    def _on_rollout_end(self):
+        # Run 1 deterministic evaluation episode
+        deterministic_reward = self._run_evaluation_episode(deterministic=True)
+        
+        # Run 4 stochastic evaluation episodes
+        stochastic_rewards = []
+        for _ in range(4):
+            stochastic_rewards.append(self._run_evaluation_episode(deterministic=False))
+        
+        # Combine all episode rewards
+        episode_rewards = [deterministic_reward] + stochastic_rewards
+        
+        # Calculate statistics
+        mean_reward = np.mean(episode_rewards)
+        max_reward = np.max(episode_rewards)
 
-                while not done:
-                    action, _ = self.model.predict(obs, deterministic=True)
-                    obs, reward, terminated, truncated, info = self.eval_env.step(action)
-                    done = terminated or truncated
-                    episode_reward += reward
+        # Update best reward if we have a new best
+        if max_reward > self.best_reward:
+            self.best_reward = max_reward
+            # Save the best model
+            self.model.save(self.best_model_path)
 
-                episode_rewards.append(episode_reward)
+        # Update best mean reward
+        if mean_reward > self.best_mean_reward:
+            self.best_mean_reward = mean_reward
 
-            # Calculate statistics
-            mean_reward = np.mean(episode_rewards)
-            max_reward = np.max(episode_rewards)
+        # Store the rewards history
+        self.rewards_history["timesteps"].append(self.num_timesteps)
+        self.rewards_history["mean_rewards"].append(float(mean_reward))
+        self.rewards_history["best_rewards"].append(float(self.best_reward))
+        self.rewards_history["episode_rewards"].append([float(r) for r in episode_rewards])
 
-            # Update best reward if we have a new best
-            if max_reward > self.best_reward:
-                self.best_reward = max_reward
-                # Save the best model
-                self.model.save(self.best_model_path)
+        # Save rewards history to file
+        with open(os.path.join(RESULTS_DIR, "rewards_history.json"), "w") as f:
+            json.dump(self.rewards_history, f, indent=4)
 
-            # Update best mean reward
-            if mean_reward > self.best_mean_reward:
-                self.best_mean_reward = mean_reward
-
-            # Store the rewards history
-            self.rewards_history["timesteps"].append(self.num_timesteps)
-            self.rewards_history["mean_rewards"].append(float(mean_reward))
-            self.rewards_history["best_rewards"].append(float(self.best_reward))
-            self.rewards_history["episode_rewards"].append([float(r) for r in episode_rewards])
-
-            # Save rewards history to file
-            with open(os.path.join(RESULTS_DIR, "rewards_history.json"), "w") as f:
-                json.dump(self.rewards_history, f, indent=4)
-
-            if self.verbose > 0:
-                print(f"Timestep {self.num_timesteps}: Mean reward: {mean_reward:.2f}, Best reward: {self.best_reward:.2f}")
+        if self.verbose > 0:
+            print(f"Timestep {self.num_timesteps}: Mean reward: {mean_reward:.2f}, Best reward: {self.best_reward:.2f}")
+            print(f"Deterministic: {deterministic_reward:.2f}, Stochastic: {np.mean(stochastic_rewards):.2f}")
 
         return True
+        
+    def _run_evaluation_episode(self, deterministic=True):
+        """Run a single evaluation episode and return the total reward."""
+        obs, _ = self.eval_env.reset()
+        done = False
+        episode_reward = 0
+
+        while not done:
+            action, _ = self.model.predict(obs, deterministic=deterministic)
+            obs, reward, terminated, truncated, info = self.eval_env.step(action)
+            done = terminated or truncated
+            episode_reward += reward
+
+        return episode_reward
 
 def main():
     """
@@ -103,6 +119,11 @@ def main():
 
     # Start timing
     start_time = time.time()
+    
+    # Log the seed used
+    print(f"Using random seed: {seed}")
+    with open(os.path.join(RESULTS_DIR, "seed.txt"), "w") as f:
+        f.write(f"Seed: {seed}")
 
     print("Creating environment...")
     # Create environment
@@ -120,9 +141,10 @@ def main():
         "MlpPolicy",
         env,
         learning_rate=0.0003,
-        n_steps=171 * 100,
-        batch_size= 64, 
-        n_epochs= 1,
+        n_steps=171 * 100, 
+        batch_size=100,
+        n_epochs=10,
+        #n_epochs=5,
         gamma=0.99,
         gae_lambda=0.95,
         clip_range=0.2,
@@ -130,14 +152,15 @@ def main():
         verbose=1,
         tensorboard_log=LOG_DIR,
         policy_kwargs=dict(net_arch=[128, 128]),
+        seed=seed
     )
 
     # Create callback for tracking rewards
-    callback = RewardTrackingCallback(eval_env=eval_env, eval_freq=5000)
+    callback = RewardTrackingCallback(eval_env=eval_env)
 
     print("Training model...")
     # Train the model
-    total_timesteps = 1000000
+    total_timesteps = 171 * 100 * 1000
     model.learn(
         total_timesteps=total_timesteps,
         callback=callback
@@ -224,6 +247,7 @@ def main():
 
     # Save comprehensive results to file
     results = {
+        "seed": seed,
         "training_time_seconds": training_time,
         "training_time_hours": training_time/3600,
         "average_score": float(avg_score),
