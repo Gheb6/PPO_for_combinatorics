@@ -39,7 +39,9 @@ class RewardTrackingCallback(BaseCallback):
             "timesteps": [],
             "mean_rewards": [],
             "best_rewards": [],
-            "episode_rewards": []
+            "episode_rewards": [],
+            "ro_frac_disc": [],
+            "ro_best": [],
         }
 
         # Create results directory if it doesn't exist
@@ -53,6 +55,12 @@ class RewardTrackingCallback(BaseCallback):
         return True
 
     def _on_rollout_end(self):
+        # Final rewards of the episodes in last rollout
+        rollout_rewards = np.array([self.model.rollout_buffer.rewards[i][0] for i in range(170,17100-1,171)])
+        rollout_best = rollout_rewards.max()
+        # Quick threshold to filter disconnected graphs: works with current penalty
+        rollout_fraction_disconnected = np.mean(rollout_rewards < -25)
+
         # Run 1 deterministic evaluation episode
         deterministic_reward = self._run_evaluation_episode(deterministic=True)
         
@@ -68,9 +76,11 @@ class RewardTrackingCallback(BaseCallback):
         mean_reward = np.mean(episode_rewards)
         max_reward = np.max(episode_rewards)
 
+        episode_best = max(max_reward, rollout_best)
+
         # Update best reward if we have a new best
-        if max_reward > self.best_reward:
-            self.best_reward = max_reward
+        if episode_best > self.best_reward:
+            self.best_reward = episode_best
             # Save the best model
             self.model.save(self.best_model_path)
 
@@ -83,6 +93,8 @@ class RewardTrackingCallback(BaseCallback):
         self.rewards_history["mean_rewards"].append(float(mean_reward))
         self.rewards_history["best_rewards"].append(float(self.best_reward))
         self.rewards_history["episode_rewards"].append([float(r) for r in episode_rewards])
+        self.rewards_history["ro_frac_disc"].append(rollout_fraction_disconnected)
+        self.rewards_history["ro_best"].append(rollout_best)
 
         # Save rewards history to file
         with open(os.path.join(RESULTS_DIR, "rewards_history.json"), "w") as f:
@@ -91,7 +103,10 @@ class RewardTrackingCallback(BaseCallback):
         if self.verbose > 0:
             print(f"Timestep {self.num_timesteps}: Mean reward: {mean_reward:.2f}, Best reward: {self.best_reward:.2f}")
             print(f"Deterministic: {deterministic_reward:.2f}, Stochastic: {np.mean(stochastic_rewards):.2f}")
+            print(f"Rollout best: {rollout_best:g}, Fraction disconnected: {rollout_fraction_disconnected:g}")
 
+        plt.hist(rollout_rewards, rwidth=.8)
+        plt.savefig(os.path.join(RESULTS_DIR, f"rewards_rollout_{self.num_timesteps}.pdf"))
         return True
         
     def _run_evaluation_episode(self, deterministic=True):
@@ -127,10 +142,10 @@ def main():
 
     print("Creating environment...")
     # Create environment
-    env = GraphGymEnv(n_vertices=N_VERTICES)
+    env = GraphGymEnv(n_vertices=N_VERTICES, penalize_components=0, penalize_disconnected=40)
 
     # Create evaluation environment (not wrapped in DummyVecEnv)
-    eval_env = GraphGymEnv(n_vertices=N_VERTICES)
+    eval_env = GraphGymEnv(n_vertices=N_VERTICES, penalize_components=0, penalize_disconnected=40)
 
     # Create vector environment for training
     env = DummyVecEnv([lambda: env])
@@ -140,19 +155,18 @@ def main():
     model = PPO(
         "MlpPolicy",
         env,
-        learning_rate=0.0003,
+        learning_rate=0.001,
         n_steps=171 * 100, 
         batch_size=100,
         n_epochs=10,
         #n_epochs=5,
-        gamma=0.99,
-        gae_lambda=0.95,
+        gamma=0.999,
+        gae_lambda=0.995,
         clip_range=0.2,
         ent_coef=0.01,
         verbose=1,
         tensorboard_log=LOG_DIR,
-        policy_kwargs=dict(net_arch=[128, 128]),
-        seed=seed
+        policy_kwargs=dict(activation_fn=torch.nn.ReLU, net_arch=[128, 64, 4])
     )
 
     # Create callback for tracking rewards

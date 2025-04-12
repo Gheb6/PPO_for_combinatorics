@@ -14,7 +14,7 @@ class GraphGymEnv(gym.Env):
     plus the matching number) relative to sqrt(N-1) + 1.
     """
 
-    def __init__(self, n_vertices=19):
+    def __init__(self, n_vertices=19, penalize_components=10, penalize_disconnected=-10):
         super(GraphGymEnv, self).__init__()
         
         # Number of vertices in the graph
@@ -43,9 +43,11 @@ class GraphGymEnv(gym.Env):
             shape=(2 * self.num_edges,), 
             dtype=np.int32
         )
-        
-        # Very large negative number for invalid states
-        self.INF = 1000000
+
+        # For disconnected graphs, reward is a linear function of the
+        # number of components: these are the coefficients
+        self.penalize_components = penalize_components
+        self.penalize_disconnected = penalize_disconnected
 
     def reset(self, seed=None, options=None):
         """Reset the environment to the initial state."""
@@ -133,7 +135,7 @@ class GraphGymEnv(gym.Env):
             # Instead of a huge negative score, calculate how close we are to connectivity
             components = list(nx.connected_components(self.G))
             # Penalize based on number of components (fewer is better)
-            return -10 * (len(components) - 1)  # Still negative but much less severe
+            return -(self.penalize_components * len(components) + self.penalize_disconnected)
         
         # Calculate eigenvalues
         evals = np.linalg.eigvalsh(nx.adjacency_matrix(self.G).todense())
