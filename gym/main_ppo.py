@@ -56,7 +56,7 @@ class RewardTrackingCallback(BaseCallback):
 
     def _on_rollout_end(self):
         # Final rewards of the episodes in last rollout
-        rollout_rewards = np.array([self.model.rollout_buffer.rewards[i][0] for i in range(170,17100-1,171)])
+        rollout_rewards = np.array([self.model.rollout_buffer.rewards[i][0] for i in range(170,17100,171)])
         rollout_best = rollout_rewards.max()
         # Quick threshold to filter disconnected graphs: works with current penalty
         rollout_fraction_disconnected = np.mean(rollout_rewards < -25)
