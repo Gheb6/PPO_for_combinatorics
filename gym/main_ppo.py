@@ -93,8 +93,8 @@ class RewardTrackingCallback(BaseCallback):
         self.rewards_history["mean_rewards"].append(float(mean_reward))
         self.rewards_history["best_rewards"].append(float(self.best_reward))
         self.rewards_history["episode_rewards"].append([float(r) for r in episode_rewards])
-        self.rewards_history["ro_frac_disc"].append(rollout_fraction_disconnected)
-        self.rewards_history["ro_best"].append(rollout_best)
+        self.rewards_history["ro_frac_disc"].append(float(rollout_fraction_disconnected))
+        self.rewards_history["ro_best"].append(float(rollout_best))
 
         # Save rewards history to file
         with open(os.path.join(RESULTS_DIR, "rewards_history.json"), "w") as f:
@@ -166,7 +166,8 @@ def main():
         ent_coef=0.01,
         verbose=1,
         tensorboard_log=LOG_DIR,
-        policy_kwargs=dict(activation_fn=torch.nn.ReLU, net_arch=[128, 64, 4])
+        policy_kwargs=dict(activation_fn=torch.nn.ReLU, net_arch=[128, 64, 4]),
+        device='cpu'
     )
 
     # Create callback for tracking rewards
