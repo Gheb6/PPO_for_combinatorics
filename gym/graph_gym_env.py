@@ -12,9 +12,18 @@ class GraphGymEnv(gym.Env):
     This environment allows an agent to generate a graph by deciding whether to add each
     potential edge one by one. The goal is to minimize lambda_1 + mu (the largest eigenvalue
     plus the matching number) relative to sqrt(N-1) + 1.
+    
+    When reverse_mode=True:
+    - Starts with a complete graph
+    - Action 0 removes an edge, Action 1 keeps it
+    - Moves that would disconnect the graph automatically use Action 1
+    
+    When reverse_mode=False:
+    - Starts with an empty graph
+    - Action 0 doesn't add an edge, Action 1 adds it
     """
 
-    def __init__(self, n_vertices=19):
+    def __init__(self, n_vertices=19, reverse_mode=True):
         super(GraphGymEnv, self).__init__()
         
         # Number of vertices in the graph
@@ -46,6 +55,9 @@ class GraphGymEnv(gym.Env):
         
         # Very large negative number for invalid states
         self.INF = 1000000
+        
+        # Flag for reverse game mode (configurable)
+        self.reverse_mode = reverse_mode
 
     def reset(self, seed=None, options=None):
         """Reset the environment to the initial state."""
@@ -54,25 +66,38 @@ class GraphGymEnv(gym.Env):
             super().reset(seed=seed)
             np.random.seed(seed)
         
-        # Initialize an empty graph
-        self.G = nx.Graph()
-        self.G.add_nodes_from(list(range(self.N)))
-        
+        # Initialize graph based on mode
+        if self.reverse_mode:
+            # Complete graph for reverse mode
+            self.G = nx.complete_graph(self.N)
+        else:
+            # Empty graph for normal mode
+            self.G = nx.Graph()
+            self.G.add_nodes_from(list(range(self.N)))
+
         # Reset step counter
         self.current_step = 0
-        
-        # Initialize state: all zeros except for the indicator of the first position
+
+        # Initialize state
         self.state = np.zeros(2 * self.num_edges, dtype=np.int32)
-        self.state[self.num_edges] = 1  # Mark first position
+        
+        # In reverse mode, all edges exist initially
+        if self.reverse_mode:
+            for i in range(self.num_edges):
+                self.state[i] = 1
+                
+        # Mark first position
+        self.state[self.num_edges] = 1
+
         
         return self.state, {}  # Return initial state and empty info dict per Gymnasium API
 
     def step(self, action):
         """
-        Take a step in the environment by deciding whether to add an edge.
+        Take a step in the environment by deciding whether to add7remove an edge.
         
         Args:
-            action: 0 (don't add edge) or 1 (add edge)
+            action: 0 (don't add / remove edge) or 1 (add / keep edge)
             
         Returns:
             observation: The new state
@@ -83,32 +108,54 @@ class GraphGymEnv(gym.Env):
         """
         assert self.action_space.contains(action), f"Invalid action: {action}"
         
-        # Update the state with the action
-        self.state[self.current_step] = action
+        # Get the edge indices for the current step
+        i, j = self._step_to_edge(self.current_step)
         
-        # Add the edge to the graph if action is 1
-        if action == 1:
-            # Convert current_step to graph edge indices
-            i, j = self._step_to_edge(self.current_step)
-            self.G.add_edge(i, j)
-        
+        # Handle action based on mode
+        if self.reverse_mode:
+            # In reverse mode: action 0 = remove edge, action 1 = keep edge
+            if action == 0:
+                # Check if removing the edge would disconnect the graph
+                self.G.remove_edge(i, j)
+                is_connected = nx.is_connected(self.G)
+                
+                if not is_connected:
+                    # Illegal move - restore edge and treat as action 1
+                    self.G.add_edge(i, j)
+                    action = 1  # Override to action 1
+                    
+                    # No need to add edge as it's already present
+                    
+                # Update state with (potentially modified) action
+                self.state[self.current_step] = action
+            else:
+                # Action 1 (keep edge) - edge already exists
+                self.state[self.current_step] = 1
+        else:
+            # In normal mode: action 0 = don't add edge, action 1 = add edge
+            self.state[self.current_step] = action
+            
+            # Add edge if action is 1
+            if action == 1:
+                self.G.add_edge(i, j)
+
         # Move to next position
         self.current_step += 1
-        
+
         # Update the one-hot encoding of current position
         self.state[self.num_edges + self.current_step - 1] = 0
         if self.current_step < self.num_edges:
             self.state[self.num_edges + self.current_step] = 1
-        
+
         # Check if episode is done
         terminated = self.current_step == self.num_edges
         truncated = False  # We don't truncate episodes
-        
+
         # Calculate reward
         reward = 0
         if terminated:
             reward = self.calcScore()
-        
+
         # Prepare info dict
         info = {}
         if terminated:
@@ -123,7 +170,7 @@ class GraphGymEnv(gym.Env):
                 'is_connected': nx.is_connected(self.G),
                 'score': reward
             }
-        
+
         return self.state, reward, terminated, truncated, info
 
     def calcScore(self):

@@ -1,11 +1,11 @@
 # TODO LIST
 
-- [ ]  heatmap: n*n matrix containing the average of each bit
-- [ ] plots with matplotlib
-- [ ] dictionary → counts different graphs and their frequencies
+- [X]  heatmap: n*n matrix containing the average of each bit
+- [X] plots with matplotlib
+- [X] dictionary → counts different graphs and their frequencies
 - [X] proceed for 1000 steps after a counterexample is found
-- [ ] single, transposed CSV
-- [ ] terminate in case of prolonged stalling
+- [X] single, transposed CSV
+- [X] terminate in case of prolonged stalling
 
       
 before running the code, remember to change the paths in the functions
