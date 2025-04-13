@@ -178,9 +178,10 @@ class GraphGymEnv(gym.Env):
         # Check if graph is connected (required by the conjecture)
         if not nx.is_connected(self.G):
             # Instead of a huge negative score, calculate how close we are to connectivity
-            components = list(nx.connected_components(self.G))
+            #components = list(nx.connected_components(self.G))
             # Penalize based on number of components (fewer is better)
-            return -10 * (len(components) - 1)  # Still negative but much less severe
+            #return -10 * (len(components) - 1)  # Still negative but much less severe
+            return -40
         
         # Calculate eigenvalues
         evals = np.linalg.eigvalsh(nx.adjacency_matrix(self.G).todense())
