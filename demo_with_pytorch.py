@@ -124,7 +124,8 @@ class NeuralNet(nn.Module):
 
         # Activation functions
         self.relu = nn.ReLU()       # ReLU activation for hidden layers
-        self.sigmoid = nn.Sigmoid() # Sigmoid activation for binary output
+        # No sigmoid activation - Use BCEWithLogitsLoss which includes sigmoid
+        # self.sigmoid = nn.Sigmoid() # Sigmoid activation for binary output
 
         # Apply Xavier uniform initialization to weights
         for layer in [self.fc1, self.fc2, self.fc3, self.fc4]:
@@ -144,7 +145,8 @@ class NeuralNet(nn.Module):
         x = self.relu(self.fc1(x))   # Apply ReLU after first layer
         x = self.relu(self.fc2(x))   # Apply ReLU after second layer
         x = self.relu(self.fc3(x))   # Apply ReLU after third layer
-        x = self.sigmoid(self.fc4(x)) # Apply Sigmoid to the output layer
+        #x = self.sigmoid(self.fc4(x)) # Apply Sigmoid to the output layer
+        x = self.fc4(x)                # Output raw logits, no sigmoid
         return x
 
 def predict(model, states, step):
@@ -167,7 +169,9 @@ def predict(model, states, step):
 
     # Perform the prediction
     with torch.no_grad():
-        prob = model(input_tensor).cpu().numpy()
+        # prob = model(input_tensor).cpu().numpy()
+        logits = model(input_tensor)
+        prob = torch.sigmoid(logits).cpu().numpy()  # Apply sigmoid to convert logits to probabiliti
 
     return prob  # Return predictions
 
@@ -190,7 +194,9 @@ def train_model(model, elite_states, elite_actions, epochs=1, batch_size=32, lea
     elite_actions = torch.tensor(elite_actions, dtype=torch.float32).to(device)
 
     # Define the loss function
-    criterion = nn.BCELoss(reduction="sum")  # Binary Cross-Entropy loss for classification
+    #criterion = nn.BCELoss(reduction="sum")  # Binary Cross-Entropy loss for classification
+    criterion = nn.BCEWithLogitsLoss(reduction="sum")  # Combines sigmoid activation with binary cross-entropy loss
+    
     optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.0, weight_decay=0, nesterov=False)
 
     #optimizer = optim.Adam(model.parameters(), lr=learning_rate)  # Adam optimizer for better convergence
