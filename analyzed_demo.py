@@ -163,7 +163,7 @@ def calcScore(state):
                         print(state)
                         nx.draw_kamada_kawai(G)
                         #Save the graph
-                        plt.savefig('output.png')
+                        plt.savefig('output.pdf')
                 
                         with open('positive score graph.txt', 'w') as f:
                                 f.write("Graph state: \n")
@@ -496,7 +496,7 @@ for i in range(1000000): #1000000 generations should be plenty
                 plt.xlabel("Bit Index")
                 plt.yticks([])  # Remove the Y-axis since it's a single row
 
-                heatmap_path = os.path.join(heatmap_dir, f"heatmap_{i + 1}.png")
+                heatmap_path = os.path.join(heatmap_dir, f"heatmap_{i + 1}.pdf")
                 plt.savefig(heatmap_path)
                 plt.close()
 
