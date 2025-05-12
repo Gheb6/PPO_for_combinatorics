@@ -3,6 +3,9 @@ from gymnasium import spaces
 import numpy as np
 import networkx as nx
 import math
+import matplotlib.pyplot as plt  # Add matplotlib for graph visualization
+import datetime  # For timestamped filenames
+import os  # For directory operations
 
 class GraphGymEnv(gym.Env):
     """
@@ -40,6 +43,9 @@ class GraphGymEnv(gym.Env):
         
         # The current state representation
         self.state = None
+        
+        # Flag to track if a positive score graph has been saved
+        self.has_saved_graph = False
         
         # Action space: binary choice for each edge (add it or not)
         self.action_space = spaces.Discrete(2)
@@ -94,7 +100,7 @@ class GraphGymEnv(gym.Env):
 
     def step(self, action):
         """
-        Take a step in the environment by deciding whether to add7remove an edge.
+        Take a step in the environment by deciding whether to add/remove an edge.
         
         Args:
             action: 0 (don't add / remove edge) or 1 (add / keep edge)
@@ -171,6 +177,11 @@ class GraphGymEnv(gym.Env):
                 'score': reward
             }
 
+            # Save graph if score is positive and hasn't been saved yet
+            if reward > 0 and not self.has_saved_graph:
+                self.save_graph()
+                self.has_saved_graph = True
+
         return self.state, reward, terminated, truncated, info
 
     def calcScore(self):
@@ -199,6 +210,23 @@ class GraphGymEnv(gym.Env):
         score = math.sqrt(self.N - 1) + 1 - lambda1 - mu
         
         return score
+
+    def save_graph(self):
+        """Save the graph as an image and adjacency matrix."""
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        directory = "saved_graphs"
+        os.makedirs(directory, exist_ok=True)
+        
+        # Save graph image
+        plt.figure(figsize=(8, 8))
+        nx.draw(self.G, with_labels=True, node_color="lightblue", edge_color="gray")
+        plt.title(f"Graph with score > 0")
+        plt.savefig(os.path.join(directory, f"graph_{timestamp}.pdf"))
+        plt.close()
+        
+        # Save adjacency matrix
+        adj_matrix = nx.adjacency_matrix(self.G).todense()
+        np.savetxt(os.path.join(directory, f"adj_matrix_{timestamp}.txt"), adj_matrix, fmt="%d")
 
     def _step_to_edge(self, step):
         """Convert step number to graph edge indices."""
