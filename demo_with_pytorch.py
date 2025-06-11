@@ -650,7 +650,7 @@ for i in range(1000000): #1000000 generations should be plenty
                 [bit_means], aspect="auto", cmap="viridis", interpolation="nearest"
                 )
                 plt.colorbar(label="Average Value")
-                plt.title(f"Heatmap of Average Bits - Iterations {i + 1 - iteration_block + 1} a {i + 1}")
+                plt.title(f"Heatmap of Average Bits - Iterations {i + 1 - iteration_block + 1} to {i + 1}")
                 plt.xlabel("Bit Index")
                 plt.yticks([])  # Remove the Y-axis since it's a single row
 

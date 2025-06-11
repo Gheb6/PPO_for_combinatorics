@@ -1,18 +1,3 @@
-# TODO LIST
-
-- [ ]  heatmap: n*n matrix containing the average of each bit
-- [ ] plots with matplotlib
-- [ ] dictionary → counts different graphs and their frequencies
-- [X] proceed for 1000 steps after a counterexample is found
-- [ ] single, transposed CSV
-- [ ] terminate in case of prolonged stalling
-
-      
-before running the code, remember to change the paths in the functions
-
----
-
-
 # cross-entropy-for-combinatorics
 Code accompanying the arXiv version of the manuscript "Constructions in combinatorics via neural networks" by A Z Wagner
 https://arxiv.org/abs/2104.14516
