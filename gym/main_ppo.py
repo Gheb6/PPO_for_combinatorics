@@ -10,13 +10,14 @@ import torch.nn as nn
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
-from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList
 from stable_baselines3.common.policies import ActorCriticPolicy
 from stable_baselines3.common.torch_layers import MlpExtractor
 
 # Import Gym environment
 import gymnasium as gym
 from graph_gym_env import GraphGymEnv
+import datetime 
 
 # Set random seed for reproducibility
 seed = int(time.time())
@@ -68,12 +69,15 @@ class RewardTrackingCallback(BaseCallback):
         self.eval_env = eval_env
         self.best_mean_reward = -np.inf
         self.best_reward = -np.inf
+        self.max_score = -np.inf  # Track the maximum score of any graph (even partial)
+        self.best_graph = None  # Store the best graph
         self.best_model_path = os.path.join(MODELS_DIR, "best_model")
         self.rewards_history = {
             "timesteps": [],
             "mean_rewards": [],
             "best_rewards": [],
-            "episode_rewards": []
+            "episode_rewards": [],
+            "max_score": []
         }
         os.makedirs(RESULTS_DIR, exist_ok=True)
 
@@ -129,6 +133,75 @@ class RewardTrackingCallback(BaseCallback):
             episode_reward += reward
         return episode_reward
 
+class CounterexampleCheckingCallback(BaseCallback):
+    """
+    Callback that checks for counterexamples after each step and logs them.
+    """
+    def __init__(self, verbose=0):
+        super(CounterexampleCheckingCallback, self).__init__(verbose)
+        self.counterexamples_found = 0
+        self.counterexample_timesteps = []
+        self.max_score = -np.inf
+        self.best_graph = None
+        os.makedirs(RESULTS_DIR, exist_ok=True)
+        os.makedirs("saved_graphs", exist_ok=True)
+        
+    def _on_step(self):
+        """
+        Check the latest info dict for counterexample flags and track highest score.
+        """
+        # Check the latest info dict from each environment
+        for env_idx in range(len(self.training_env.envs)):
+            info = self.locals.get('infos', [{}])[env_idx]
+            
+            # Track max score for any graph (complete or partial)
+            if 'current_score' in info and info['current_score'] > self.max_score:
+                self.max_score = info['current_score']
+                self.best_graph = info.get('graph_copy', None)
+                
+                # Log the new best score
+                if self.verbose > 0:
+                    print(f"New max score: {self.max_score:.4f} at timestep {self.num_timesteps}")
+                
+                # Save the best graph
+                if self.best_graph is not None:
+                    self._save_best_graph()
+            
+            # Handle counterexamples (when score > 0)
+            if info.get('counterexample', False):
+                self.counterexamples_found += 1
+                self.counterexample_timesteps.append(self.num_timesteps)
+                
+                # Log the discovery
+                if self.verbose > 0:
+                    print(f"Found counterexample #{self.counterexamples_found} at timestep {self.num_timesteps}")
+                
+                # Save the timesteps to a file
+                with open(os.path.join(RESULTS_DIR, "counterexample_timesteps.json"), "w") as f:
+                    json.dump({
+                        "count": self.counterexamples_found,
+                        "timesteps": self.counterexample_timesteps,
+                        "max_score": float(self.max_score)
+                    }, f, indent=4)
+                    
+        return True
+    
+    def _save_best_graph(self):
+        """Save the graph with the highest score."""
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        directory = "saved_graphs"
+        
+        # Save graph image
+        plt.figure(figsize=(8, 8))
+        nx.draw(self.best_graph, with_labels=True, node_color="lightblue", edge_color="gray")
+        plt.title(f"Best Graph (Score: {self.max_score:.4f})")
+        plt.savefig(os.path.join(directory, f"best_graph_score_{self.max_score:.4f}_{timestamp}.pdf"))
+        plt.close()
+        
+        # Save adjacency matrix
+        adj_matrix = nx.adjacency_matrix(self.best_graph).todense()
+        np.savetxt(os.path.join(directory, f"best_adj_matrix_{self.max_score:.4f}_{timestamp}.txt"), adj_matrix, fmt="%d")
+
 # Main training function
 def main():
     """
@@ -170,19 +243,24 @@ def main():
         seed=seed
     )
 
-    # Create and assign the callback
-    callback = RewardTrackingCallback(eval_env=eval_env)
+    # Create callbacks
+    # reward_callback = RewardTrackingCallback(eval_env=eval_env)
+    counterexample_callback = CounterexampleCheckingCallback(verbose=1)
+    
+    # Combine callbacks
+    # callback = CallbackList([reward_callback, counterexample_callback])
 
     # Train the model
     print("Training model...")
     total_timesteps = 171 * 100 * 1000
-    model.learn(total_timesteps=total_timesteps, callback=callback)
+    model.learn(total_timesteps=total_timesteps, callback=counterexample_callback)
 
     # Save the final model
     final_model_path = os.path.join(MODELS_DIR, "final_model")
     model.save(final_model_path)
     print(f"Final model saved to {final_model_path}")
-    print(f"Best model saved to {callback.best_model_path}")
+    #print(f"Best model saved to {reward_callback.best_model_path}")
+    print(f"Found {counterexample_callback.counterexamples_found} counterexamples")
 
     # Log total training time
     training_time = time.time() - start_time

@@ -26,7 +26,7 @@ class GraphGymEnv(gym.Env):
     - Action 0 doesn't add an edge, Action 1 adds it
     """
 
-    def __init__(self, n_vertices=19, reverse_mode=True):
+    def __init__(self, n_vertices=19, reverse_mode=False):
         super(GraphGymEnv, self).__init__()
         
         # Number of vertices in the graph
@@ -157,30 +157,47 @@ class GraphGymEnv(gym.Env):
         terminated = self.current_step == self.num_edges
         truncated = False  # We don't truncate episodes
 
-        # Calculate reward
-        reward = 0
-        if terminated:
-            reward = self.calcScore()
+        # Calculate score at every step
+        score = self.calcScore()
+        is_counterexample = score > 0 and nx.is_connected(self.G)
 
-        # Prepare info dict
-        info = {}
+        # Print current score at each step
+        print(f"Step {self.current_step}/{self.num_edges} - Current score: {score:.4f}")
+
+        # Save counterexample if found and not saved yet
+        if is_counterexample and not self.has_saved_graph:
+            self.save_graph()
+            self.has_saved_graph = True
+
+        # Calculate reward (only non-zero at termination)
+        reward = score if terminated else 0
+
+        # Info dict - include score and graph copy at every step
+        info = {
+            'current_score': score,
+            'is_connected': nx.is_connected(self.G),
+            'graph_copy': self.G.copy()  # Include a copy of the current graph
+        }
+        
+        if is_counterexample:
+            info['counterexample'] = True
+            
         if terminated:
             # Add additional information when episode is complete
             evals = np.linalg.eigvalsh(nx.adjacency_matrix(self.G).todense())
             lambda1 = max(abs(evals))
             max_match = nx.max_weight_matching(self.G)
             mu = len(max_match)
-            info = {
+            info.update({
                 'lambda1': lambda1,
                 'mu': mu,
-                'is_connected': nx.is_connected(self.G),
-                'score': reward
-            }
-
-            # Save graph if score is positive and hasn't been saved yet
-            if reward > 0 and not self.has_saved_graph:
-                self.save_graph()
-                self.has_saved_graph = True
+                'score': score
+            })
+            
+            # Print end of episode summary
+            print(f"Episode complete - Final score: {score:.4f}")
+            print(f"Lambda1: {lambda1:.4f}, Mu: {mu}, Is connected: {nx.is_connected(self.G)}")
+            print("-" * 50)
 
         return self.state, reward, terminated, truncated, info
 
