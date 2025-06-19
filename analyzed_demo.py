@@ -458,22 +458,27 @@ for i in range(1000000): #1000000 generations should be plenty
 
                 # Calculate the mean of each bit (axis 0)
                 bit_means = actions_array.mean(axis=0)
+                
                 # Populate the matrix symmetrically
+                bit_index = 0  # Track position in bit_means array
+                
                 if CHANGE_ORDER:
                         for k in range(1, N):
                                 for j in range(0, k):
-                                        mean_value = bit_means[k]
+                                        mean_value = bit_means[bit_index]
                                         mean_matrix[j, k] = mean_value
                                         mean_matrix[k, j] = mean_value
+                                        bit_index += 1
                                         
                 else:
                         for k in range(N):
-                                for j in range(k + 1, N):  # Iterate only over the upper half (i < j) to ensure symmetry
-                                        mean_value = bit_means[k]
+                                for j in range(k + 1, N):
+                                        mean_value = bit_means[bit_index]
                                         mean_matrix[k, j] = mean_value
-                                        mean_matrix[j, k] = mean_value  # The matrix is symmetric, so also set mean_matrix[j, i]
+                                        mean_matrix[j, k] = mean_value
+                                        bit_index += 1
                 
-                # Set the diagonal to 0
+                # Set the diagonal to 0 (should already be 0, but just to be explicit)
                 np.fill_diagonal(mean_matrix, 0)
                 # Create heatmap directory
                 heatmap_dir = os.path.join(output_dir, "heatmap")
