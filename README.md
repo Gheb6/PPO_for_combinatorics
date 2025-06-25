@@ -1,29 +1,115 @@
-# cross-entropy-for-combinatorics
-Code accompanying the arXiv version of the manuscript "Constructions in combinatorics via neural networks" by A Z Wagner
-https://arxiv.org/abs/2104.14516
+# PPO for Combinatorics
 
+This repository contains implementations for solving combinatorial problems using reinforcement learning approaches, specifically Cross-Entropy Method (CEM) and Proximal Policy Optimization (PPO).
 
-### Software requirements
+## Project Structure
 
-- Tensorflow version 1.14.0
-- Python version 3.6.3
-- Keras version 2.3.1
+### Main Branch
+- **`demo_with_pytorch.py`** - PyTorch implementation of the Cross-Entropy Method
+- **`analyzed_demo.py`** - Keras/TensorFlow implementation of the Cross-Entropy Method 
+- **`reward_plot.py`** - Utility for plotting reward comparisons across different test runs
 
-### Demos
+### Gheb6-gym Branch
+- **`gym/`** folder containing PPO implementation using OpenAI Gym environment:
+  - `graph_gym_env.py` - Custom Gymnasium environment for graph generation
+  - `main_ppo.py` - PPO training script with custom callbacks
+  - `ppo_mean_rewards.py` - Plotting script for mean rewards
+  - `ppo_best_rewards.py` - Plotting script for best rewards
 
-The cem_binary_conj21.py file contains the solution to Conjecture 2.1 in the paper. The code is very simple and rather slow, but it is enough to find the counterexample given in the paper within a day.
+## Problem Description
 
-The cem_binary_conj23_with_numba.py file contains the solution to Conjecture 2.3. It uses the numba package to speed up the calculation of the reward. It will find a graph similar to Figure 5 in the arXiv paper, within a few days.
+The code tackles **Conjecture 2.1** from the paper "Constructions in combinatorics via neural networks and LP solvers" by A Z Wagner. The goal is to find graphs that minimize λ₁ + μ (largest eigenvalue plus matching number) relative to √(N-1) + 1, where finding a positive score indicates a counterexample to the conjecture.
 
-### Installation and usage
+## Approaches
 
-Install the versions of Tensorflow, Python, and Keras as above. Note that having higher versions of Tensorflow and Python might drastically reduce the performance of the code.
+### 1. Cross-Entropy Method (CEM)
+- **File**: `demo_with_pytorch.py` (PyTorch) or `analyzed_demo.py` (Keras)
+- Uses evolutionary approach to generate graphs
+- Tracks elite graphs and their frequencies
+- Generates heatmaps showing edge probabilities
 
-Download the code_template.py file. Change the variable `DECISIONS` to the number of binary decisions in your problem, and choose the hyperparameters. Next, fill in the reward function for your problem in the `calc_score` function. The input to this function is a 0-1 list of length `DECISIONS`, representing your graph or other object you have created. See demos for examples. Run the program simply with the `python code_template.py` command, no installation is necessary.
+### 2. Proximal Policy Optimization (PPO) 
+- **Branch**: `Gheb6-gym`
+- **File**: `gym/main_ppo.py`
+- Uses reinforcement learning with custom Gym environment
+- Sequential edge decision making
+- Real-time counterexample detection
 
-### Output
+## Software Requirements
 
-During runtime, the program will display the scores of the best constructions in the current iteration. All the information is also saved every 20 iterations into files, both in pickle and txt formats, in the same folder as the .py file.
+### For CEM Implementation
+- Python 3.6+ (for `demo_with_pytorch.py`)
+- OR Python 3.6.3 + TensorFlow 1.14.0 + Keras 2.3.1 (for `analyzed_demo.py`)
+- PyTorch (for `demo_with_pytorch.py`)
+- NetworkX
+- NumPy
+- Matplotlib
+
+### For PPO Implementation (Gheb6-gym branch)
+- Python 3.7+
+- Stable-Baselines3
+- Gymnasium
+- PyTorch
+- NetworkX
+- NumPy
+- Matplotlib
+
+## Key Features
+
+### Cross-Entropy Method
+- ✅ N×N heatmap matrix showing average edge probabilities
+- ✅ Matplotlib plotting for visualization
+- ✅ Dictionary tracking super graphs and frequencies
+- ✅ Continues for 1000 steps after counterexample found
+- ✅ CSV output with comprehensive statistics
+- ✅ Automatic termination on convergence
+
+### PPO Method
+- ✅ Custom Gymnasium environment for graph construction
+- ✅ Sequential decision making (edge by edge)
+- ✅ Two game modes: starting from empty graph (adding edges) or full graph (removing edges)
+- ✅ Real-time scoring and counterexample detection
+- ✅ Custom callbacks for tracking progress
+- ✅ Graph visualization and saving
+- ✅ Connectivity constraint handling
+
+## Output Files
+
+### CEM Output
+- `results/output.csv` - Training statistics and metrics
+- `results/dictionaries/` - Graph frequency dictionaries
+- `results/heatmap/` - Edge probability heatmaps
+- `results/elite_graph/` - Elite graph sequences
+- `saved_graphs/` - Counterexample graphs (if found)
+
+### PPO Output
+- `ppo_graph_gym_results/` - Training results and rewards
+- `saved_graphs/` - Best scoring graphs
+- `ppo_graph_gym_models/` - Trained models
+
+## How to Cite
+
+If you use this code in your research, please cite it as:
+
+```bibtex
+@misc{righi2025ppo,
+  author       = {Gabriele Righi and Francesco Morandin},
+  title        = {{PPO\_for\_combinatorics}},
+  year         = {2025},
+  howpublished = {\url{https://github.com/Gheb6/PPO_for_combinatorics}}
+}
+```
+
+## References
+
+Based on the paper: "Constructions in combinatorics via neural networks and LP solvers" by A Z Wagner
+- arXiv: https://arxiv.org/abs/2104.14516
+
+## Notes
+
+- The PPO implementation is available in the `Gheb6-gym` branch
+- GPU acceleration recommended for faster training
+- Both approaches aim to find counterexamples to graph theory conjectures
 
 
 
