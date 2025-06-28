@@ -10,7 +10,7 @@ This repository contains implementations for solving combinatorial problems usin
 - **`reward_plot.py`** - Utility for plotting reward comparisons across different test runs
 
 ### Gheb6-gym Branch
-- **`gym/`** folder containing PPO implementation using OpenAI Gym environment:
+- **`gym/`** folder containing PPO implementation using OpenAI Gymnasium environment:
   - `graph_gym_env.py` - Custom Gymnasium environment for graph generation
   - `main_ppo.py` - PPO training script with custom callbacks
   - `ppo_mean_rewards.py` - Plotting script for mean rewards
@@ -26,12 +26,12 @@ The code tackles **Conjecture 2.1** from the paper "Constructions in combinatori
 - **File**: `demo_with_pytorch.py` (PyTorch) or `analyzed_demo.py` (Keras)
 - Uses evolutionary approach to generate graphs
 - Tracks elite graphs and their frequencies
-- Generates heatmaps showing edge probabilities
+- Generates heatmaps showing average of each edge bit over time
 
 ### 2. Proximal Policy Optimization (PPO) 
 - **Branch**: `Gheb6-gym`
 - **File**: `gym/main_ppo.py`
-- Uses reinforcement learning with custom Gym environment
+- Uses reinforcement learning with custom Gymnasium environment
 - Sequential edge decision making
 - Real-time counterexample detection
 
@@ -57,7 +57,7 @@ The code tackles **Conjecture 2.1** from the paper "Constructions in combinatori
 ## Key Features
 
 ### Cross-Entropy Method
-- ✅ N×N heatmap matrix showing average edge probabilities
+- ✅ N×N heatmap matrix showing average of each edge bit (graph edges represented as bits) visualized every 500 iterations
 - ✅ Matplotlib plotting for visualization
 - ✅ Dictionary tracking super graphs and frequencies
 - ✅ Continues for 1000 steps after counterexample found
@@ -78,14 +78,19 @@ The code tackles **Conjecture 2.1** from the paper "Constructions in combinatori
 ### CEM Output
 - `results/output.csv` - Training statistics and metrics
 - `results/dictionaries/` - Graph frequency dictionaries
-- `results/heatmap/` - Edge probability heatmaps
+- `results/heatmap/` - Heatmaps showing average of each edge bit over 500-iteration intervals
 - `results/elite_graph/` - Elite graph sequences
 - `saved_graphs/` - Counterexample graphs (if found)
 
 ### PPO Output
 - `ppo_graph_gym_results/` - Training results and rewards
-- `saved_graphs/` - Best scoring graphs
+  - `rewards_history.json` - Complete reward history during training
+  - `seed.txt` - Random seed used for reproducibility
 - `ppo_graph_gym_models/` - Trained models
+  - `best_model.zip` - Best performing model during training
+  - `final_model.zip` - Final model at end of training
+- `ppo_graph_gym_logs/` - TensorBoard logs for training visualization
+- `saved_graphs/` - Best scoring graphs (if any counterexamples found)
 
 ## How to Cite
 
